@@ -800,7 +800,7 @@ int main(int argc, char *argv[]) {
 
 	// obviously there's a lot more to implement.
 	
-	printf("%s [*] Breakout is complete. You should now have a fully working jailbreak! Enjoy!%s\n", KGRN, KNRM);
+	printf("%s [*] Breakout is complete, you should now have a fully working jailbreak! Enjoy!%s\n", KGRN, KNRM);
 	printf("%s [*] Breakout was written by DarkMalloc et. al.%s\n\n", KGRN, KNRM);
 	
 	return 0;
