@@ -587,20 +587,36 @@ int main(int argc, char *argv[]) {
 	
 	printf("%s [*] Successfully uploaded gameover.dylib!%s\n\n", KGRN, KNRM);
 	
-	//getting caches
-	printf(" [*] Attempting to start file_reay\n");
+	
+	
+	// getting caches
+	
+	// reconnect to lockdownd
+	printf(" [*] Attempting to connect to lockdownd...\n");
+	lderr = lockdownd_client_new_with_handshake(gDevice, &gLockdown,
+			"file_relay");
+	if (lderr != LOCKDOWN_E_SUCCESS) {
+		printf("%s [*] Unable to connect to lockdownd. Please reboot your device and try again.%s\n\n", KRED, KNRM);
+		return -1;
+	}
+	
+	printf("%s [*] Successfully connected to lockdownd!%s\n\n", KGRN, KNRM);
+	
+	
+	// need to connect to com.apple.mobile.file_relay to get caches...
+	printf(" [*] Attempting to start file relay...\n");
 	
 	lderr = lockdownd_start_service(gLockdown, "com.apple.mobile.file_relay", &port);
 	
 	if (lderr != LOCKDOWN_E_SUCCESS) {
-		printf("%s [*] Unable to start file_relay service! %s\n", KRED, KNRM);
+		printf("%s [*] Unable to start file_relay service! Please reboot your device and try again.%s\n\n", KRED, KNRM);
 		lockdownd_client_free(gLockdown);
 		idevice_free(gDevice);
 		return -1;
 	}
 	printf("%s [*] Successfully started file_relay service!%s\n\n", KGRN, KNRM);
 	
-	
+	// close connection to lockdownd, we can reconnect later.
 	if (gLockdown) {
 		lockdownd_client_free(gLockdown);
 		gLockdown = NULL;
@@ -611,20 +627,23 @@ int main(int argc, char *argv[]) {
 	frcerr = file_relay_client_new(gDevice, port, &gFrc);	
 	
 	if (frcerr != FILE_RELAY_E_SUCCESS) {
-		printf("could not connect to file_relay service!\n");
+		printf("%s [*] Unable to connect to file_relay service! Please reboot your device and try again.%s\n\n", KRED, KNRM);
 		lockdownd_client_free(gLockdown);
 		idevice_free(gDevice);
 		return -1;
 	}
 	
 	
+	// sources for request
 	idevice_connection_t dump = NULL;
 	const char *sources[] = {"Caches", NULL};
 	
-	printf(" [*] Attempting to get Caches \n");
+	
+	// actually grab caches
+	printf(" [*] Attempting to get caches from com.apple.mobile.file_relay...\n");
 	
 	if (file_relay_request_sources(gFrc, sources, &dump) != FILE_RELAY_E_SUCCESS) {
-		printf("could not get Caches\n");
+		printf("%s [*] Unable to get caches! Please reboot your device and try again.%s\n\n", KRED, KNRM);
 		file_relay_client_free(gFrc);
 		lockdownd_client_free(gLockdown);
 		idevice_free(gDevice);
@@ -632,43 +651,40 @@ int main(int argc, char *argv[]) {
 	}
 	
 	if (!dump) {
-		printf("did not get connection!\n");
+		printf("%s [*] Unable to get caches! Please reboot your device and try again.%s\n\n", KRED, KNRM);
 		file_relay_client_free(gFrc);
 		lockdownd_client_free(gLockdown);
 		idevice_free(gDevice);
 		return -1;
 	}
 	
+	// save caches to disk
 	uint32_t cnt = 0;
 	uint32_t len = 0;
 	char buf[4096];
 	FILE *f = fopen("resources/caches.cpio.gz", "w");
 	setbuf(stdout, NULL);
-	printf(" [*] Receiving Caches ... pls wait");
+	printf(" [*] Receiving Caches...\n");
 	while (idevice_connection_receive(dump, buf, 4096, &len) == IDEVICE_E_SUCCESS) {
 		fwrite(buf, 1, len, f);
 		cnt += len;
 		len = 0;
 	}
-	printf("\n");
 	fclose(f);
-	printf("%s [*] Total size received: %d\n\n%s", KGRN,cnt, KNRM);
+	printf("%s [*] Successfully received caches! Total size received: %d\n\n%s", KGRN,cnt, KNRM);
 	
 	
-	//unpacking caches
+	// unpack caches, extract needs plists and clean up after
 	
 	system("mkdir resources/extracted > /dev/null");
-	printf(" [*] Extracting files\n");
+	printf(" [*] Extracting caches...\n");
 	system("tar -C resources/extracted -xvf resources/caches.cpio.gz &> /dev/null");
 	system("mv resources/extracted/var/mobile/Library/Caches/com.apple.mobile.installation.plist resources/");
 	system("mv resources/extracted/var/mobile/Library/Caches/com.apple.LaunchServices-055.csstore resources/");
-	
-	//not finished here
 	system("rm -rf resources/extracted/ resources/caches.cpio.gz > /dev/null");	
-		
-	
+	printf("%s [*] Successfully unpacked caches!\n\n%s", KGRN, KNRM);
+
 	// obviously there's a lot more to implement.
-	printf("That runned successfully for now yey :D\n");
 	
 	return 0;
 	
